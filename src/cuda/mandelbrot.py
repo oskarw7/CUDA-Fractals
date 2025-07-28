@@ -34,9 +34,21 @@ def create_fractal(min_x, min_y, max_x, max_y, image, iters_threshold):
             im = min_y + y * pixel_size_y
             image[y, x] = mandelbrot_pixel(re, im, iters_threshold)
 
+# Helper function for converting matrix into image and saving it
+def save_fractal(min_x, min_y, max_x, max_y, image):
+    dpi = 100
+    figsize = (
+        image.shape[1] / dpi,
+        image.shape[0] / dpi
+    )
+    plt.figure(figsize=figsize, dpi=dpi)
+    plt.imshow(image, cmap='viridis', extent=(min_x, max_x, min_y, max_y))
+    plt.axis('off')
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    plt.savefig('../assets/mandelbrot.png')
 
 # Function called from outer scope
-def generate_fractal(image_width, image_height, iters_threshold):
+def generate_fractal(min_x, min_y, max_x, max_y, image_width, image_height, iters_threshold):
     image = np.zeros((image_height, image_width), dtype=np.uint8)
 
     block_dim = (32, 16)  # NOTE: Try different values
@@ -46,17 +58,9 @@ def generate_fractal(image_width, image_height, iters_threshold):
     )
 
     device_image = cuda.to_device(image)
-    create_fractal[grid_dim, block_dim](-2.0, -1.0, 1.0, 1.0, device_image, iters_threshold)
+    create_fractal[grid_dim, block_dim](min_x, min_y, max_x, max_y, device_image, iters_threshold)
     cuda.synchronize()
     device_image.copy_to_host(image)
 
-    dpi = 100
-    figsize = (
-        image_width / dpi,
-        image_height / dpi
-    )
-    plt.figure(figsize=figsize, dpi=dpi)
-    plt.imshow(image, cmap='viridis', extent=(-2.0, 1.0, -1.0, 1.0))
-    plt.axis('off')
-    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-    plt.savefig('assets/mandelbrot.png')
+    # save_fractal(min_x, min_y, max_x, max_y, image)
+    return image

@@ -9,7 +9,7 @@ from PySide6.QtGui import QAction
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.image import imsave
-from src.cuda.mandelbrot_julia import generate_fractal
+from cuda.mandelbrot_julia import generate_fractal
 
 
 # Custom progress dialog

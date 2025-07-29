@@ -21,11 +21,11 @@ pip install --upgrade pip
 pip install -r requirements.txt pyinstaller
 
 echo "[*] Building with PyInstaller..."
-pyinstaller --onefile --name fractal_app src/main.py
+pyinstaller --onefile --name fractal_generator src/main.py
 
 echo "[*] Performing cleanup..."
 mkdir -p app
-mv dist/fractal_app app
-rm -rf dist build fractal_app.spec
+mv dist/fractal_generator app
+rm -rf dist build fractal_generator.spec
 
-echo "[✓] Done. Executable is at app/fractal_app"
+echo "[✓] Done. Executable is at app/fractal_generator"

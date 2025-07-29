@@ -56,7 +56,7 @@ class FractalWorker(QThread):
 class FractalsApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('Fractals')
+        self.setWindowTitle('Fractal Generator')
         self.fractal_mode = 'mandelbrot'
         self.current_image = None
         self.worker = None

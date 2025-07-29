@@ -1,32 +1,74 @@
 import sys
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import (
     QMainWindow, QApplication, QHBoxLayout, QVBoxLayout, QWidget,
-    QLabel, QLineEdit, QPushButton, QMenuBar, QMenu, QMessageBox, QProgressDialog, QFileDialog
+    QLabel, QLineEdit, QPushButton, QMenuBar, QMenu, QMessageBox,
+    QProgressDialog, QFileDialog
 )
 from PySide6.QtGui import QAction
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
-from src.cuda.mandelbrot_julia import generate_fractal
 from matplotlib.image import imsave
+from src.cuda.mandelbrot_julia import generate_fractal
 
 
+# Custom progress dialog
+# Needed to prevent user from closing dialog and generating again while thread is still working
+class StoppableProgressDialog(QProgressDialog):
+    closed = Signal()
+
+    def closeEvent(self, event):
+        self.closed.emit()
+        super().closeEvent(event)
+
+
+# Background worker responsible for image generation
+class FractalWorker(QThread):
+    finished = Signal(object)
+    error = Signal(str)
+
+    def __init__(self, min_x, min_y, max_x, max_y, width, height, iterations, mode, re_c, im_c):
+        super().__init__()
+        self.min_x = min_x
+        self.min_y = min_y
+        self.max_x = max_x
+        self.max_y = max_y
+        self.width = width
+        self.height = height
+        self.iterations = iterations
+        self.mode = mode
+        self.re_c = re_c
+        self.im_c = im_c
+
+    def run(self):
+        try:
+            result = generate_fractal(
+                self.min_x, self.min_y, self.max_x, self.max_y,
+                self.width, self.height, self.iterations,
+                self.mode, self.re_c, self.im_c
+            )
+            self.finished.emit(result)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+# Main app class, responsible for creating GUI and managing events
 class FractalsApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Fractals')
         self.fractal_mode = 'mandelbrot'
         self.current_image = None
+        self.worker = None
 
         menu_bar = QMenuBar()
-
         file_menu = QMenu('File', self)
         save_action = QAction('Save Image...', self)
         save_action.triggered.connect(self.save_image)
         file_menu.addAction(save_action)
         menu_bar.addMenu(file_menu)
 
-        fractal_menu = QMenu('Fractal Type', self)
+        fractal_menu = QMenu('Generate fractal', self)
         self.mandelbrot_action = QAction('Mandelbrot', self)
         self.julia_action = QAction('Julia', self)
         self.mandelbrot_action.triggered.connect(self.set_mandelbrot)
@@ -44,8 +86,9 @@ class FractalsApp(QMainWindow):
         self.setMenuBar(menu_bar)
 
         main_layout = QHBoxLayout()
-
+        main_layout.setContentsMargins(10, 10, 10, 10)
         self.fig = Figure(figsize=(6, 6))
+        self.fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
         self.canvas = FigureCanvasQTAgg(self.fig)
         self.ax = self.fig.add_subplot(111)
         self.ax.axis('off')
@@ -80,7 +123,6 @@ class FractalsApp(QMainWindow):
         control_layout.addStretch()
 
         main_layout.addLayout(control_layout, stretch=1)
-
         self.set_mandelbrot()
 
         container = QWidget()
@@ -123,29 +165,46 @@ class FractalsApp(QMainWindow):
             QMessageBox.critical(self, 'Input Error', 'Invalid iterations threshold')
             return
 
-        loading_dialog = QProgressDialog("Generating fractal...", None, 0, 0, self)
-        loading_dialog.setWindowTitle("Please Wait")
-        loading_dialog.setWindowModality(Qt.ApplicationModal)
-        loading_dialog.setCancelButton(None)
-        loading_dialog.show()
+        self.loading_dialog = StoppableProgressDialog("Generating fractal...", None, 0, 0, self)
+        self.loading_dialog.setWindowTitle("Please Wait")
+        self.loading_dialog.setWindowModality(Qt.ApplicationModal)
+        self.loading_dialog.setCancelButton(None)
+        self.loading_dialog.closed.connect(self.on_loading_dialog_closed)
+        self.loading_dialog.show()
 
-        QApplication.processEvents()
+        self.worker = FractalWorker(
+            min_x, min_y, max_x, max_y,
+            width, height, iterations,
+            self.fractal_mode, re_c, im_c
+        )
+        self.worker.finished.connect(self.on_generation_finished)
+        self.worker.error.connect(self.on_generation_error)
+        self.worker.start()
 
-        image = generate_fractal(min_x, min_y, max_x, max_y, width, height, iterations,
-                                 self.fractal_mode, re_c, im_c)
+    def on_loading_dialog_closed(self):
+        if self.worker and self.worker.isRunning():
+            self.worker.quit()
+            self.worker.wait()
+            self.worker = None
 
-        loading_dialog.close()
-
+    def on_generation_finished(self, image):
+        self.loading_dialog.close()
         self.current_image = image
-
         self.ax.clear()
-        self.ax.imshow(image, cmap='viridis', extent=(min_x, max_x, min_y, max_y))
+        self.ax.imshow(image, cmap='viridis')
         self.ax.axis('off')
+        self.ax.set_position((0, 0, 1, 1))
         self.canvas.draw()
+        self.worker = None
+
+    def on_generation_error(self, message):
+        self.loading_dialog.close()
+        QMessageBox.critical(self, "Generation Error", message)
+        self.worker = None
 
     def save_image(self):
         if self.current_image is None:
-            QMessageBox.warning(self, "Save Image", "No image generated yet to save.")
+            QMessageBox.critical(self, "Save Image", "No image generated yet to save.")
             return
 
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Image", "", "PNG Files (*.png);;All Files (*)")

@@ -39,7 +39,7 @@ chmod +x deploy/build_linux_macos.sh
 .\deploy\build_windows.ps1
 ```
 
-4. The executable will be created in the `app/` directory as `fractal_generator`.
+4. The executable will be created in the `app/` directory as `fractal_generator`. From then it can be moved anywhere as well as added to PATH.
 
 ## Usage
 

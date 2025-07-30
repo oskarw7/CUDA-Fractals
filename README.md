@@ -29,13 +29,13 @@ cd fractal-generator
 
 3. Build app:
 
-**Linux/macOS:**
+- Linux/macOS:
 ```bash
 chmod +x deploy/build_linux_macos.sh
 ./deploy/build_linux_macos.sh
 ```
 
-**Windows:**
+- Windows:
 ```powershell
 .\deploy\build_windows.ps1
 ```

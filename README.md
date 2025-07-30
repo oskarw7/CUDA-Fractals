@@ -28,6 +28,7 @@ cd fractal-generator
 2. Ensure you have required software and drivers installed (see `Requirements`).
 
 3. Build app:
+
 **Linux/macOS:**
 ```bash
 chmod +x deploy/build_linux_macos.sh
